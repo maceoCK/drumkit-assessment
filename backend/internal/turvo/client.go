@@ -107,6 +107,17 @@ func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	// Read the body once for logging and subsequent handling
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	// Truncate for logging to avoid huge outputs
+	maxLog := 2048
+	bodyPreview := bodyBytes
+	if len(bodyBytes) > maxLog {
+		bodyPreview = bodyBytes[:maxLog]
+	}
+	log.Printf("Turvo OAuth response: %s - %s", resp.Status, string(bodyPreview))
+
 	if resp.StatusCode == http.StatusTooManyRequests { // 429
 		cooldown := 60 * time.Second
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
@@ -115,12 +126,10 @@ func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 			}
 		}
 		c.nextOAuthAttempt = time.Now().Add(cooldown)
-		b, _ := io.ReadAll(resp.Body)
-		return RateLimitedError{RetryAfter: cooldown, Message: string(b)}
+		return RateLimitedError{RetryAfter: cooldown, Message: string(bodyBytes)}
 	}
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("oauth token error: %s - %s", resp.Status, string(b))
+		return fmt.Errorf("oauth token error: %s - %s", resp.Status, string(bodyBytes))
 	}
 	var tok struct {
 		AccessToken  string `json:"access_token"`
@@ -129,7 +138,7 @@ func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 		Scope        string `json:"scope"`
 		RefreshToken string `json:"refresh_token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tok); err != nil {
+	if err := json.Unmarshal(bodyBytes, &tok); err != nil {
 		return err
 	}
 	if strings.TrimSpace(tok.AccessToken) == "" {
