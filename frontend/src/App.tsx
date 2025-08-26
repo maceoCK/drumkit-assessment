@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   type SortingState, type ColumnDef,
@@ -10,9 +9,9 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getSortedRowModel, useReactTable,
+  useReactTable,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Plus } from "lucide-react"
+import { ArrowUpDown, ChevronDown, ChevronUp, Plus } from "lucide-react"
 import CreateLoadModal from '@/components/CreateLoadModal'
 
 import './App.css'
@@ -33,11 +32,25 @@ function App() {
   const [moreAvailable, setMoreAvailable] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   // Server-side filters
-  const [filterStatus, setFilterStatus] = useState('') // Turvo status code (2101/2102) or empty
-  const [filterExternalId, setFilterExternalId] = useState('')
-  const [filterCreatedFrom, setFilterCreatedFrom] = useState('') // datetime-local
-  const [filterUpdatedTo, setFilterUpdatedTo] = useState('')
+  const [filterStatus] = useState('') // Turvo status code (2101/2102) or empty
+  const [filterExternalId] = useState('')
+  const [filterCreatedFrom] = useState('') // datetime-local
+  const [filterUpdatedTo] = useState('')
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+
+  function mapSortForAPI(s: SortingState): string | undefined {
+    if (!s || s.length === 0) return undefined
+    const first = s[0]
+    const fieldMap: Record<string, string> = {
+      'externalTMSLoadID': 'customId',
+      'createdAt': 'createdDate',
+      'status': 'status.code',
+      'customer.name': 'customer.name',
+    }
+    const field = fieldMap[first.id] || first.id
+    const dir = first.desc ? 'desc' : 'asc'
+    return `${field}:${dir}`
+  }
 
   function buildQuery(nextStart = start) {
     const params = new URLSearchParams()
@@ -47,6 +60,8 @@ function App() {
     if (filterExternalId) params.set('customId[eq]', filterExternalId)
     if (filterCreatedFrom) params.set('created[gte]', new Date(filterCreatedFrom).toISOString())
     if (filterUpdatedTo) params.set('updated[lte]', new Date(filterUpdatedTo).toISOString())
+    const sort = mapSortForAPI(sorting)
+    if (sort) params.set('sortBy', sort)
     return params.toString()
   }
 
@@ -67,14 +82,24 @@ function App() {
     }
   }
 
-  const columns: ColumnDef<Load>[] = [
+  const columns: ColumnDef<Load>[] = useMemo(() => [
     {
       header: ({ column }) => {
         return (
           <div className="space-y-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+            <Button
+              variant="ghost"
+              className={column.getIsSorted() ? 'text-primary' : ''}
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
               External ID
-              <ArrowUpDown className="ml-2 h-4 w-4" />
+              {column.getIsSorted() === 'asc' ? (
+                <ChevronUp className="ml-2 h-4 w-4" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ChevronDown className="ml-2 h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              )}
             </Button>
             <Input
               placeholder="Filter"
@@ -94,9 +119,19 @@ function App() {
       header: ({ column }) => {
         return (
           <div className="space-y-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+            <Button
+              variant="ghost"
+              className={column.getIsSorted() ? 'text-primary' : ''}
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
               Created
-              <ArrowUpDown className="ml-2 h-4 w-4" />
+              {column.getIsSorted() === 'asc' ? (
+                <ChevronUp className="ml-2 h-4 w-4" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ChevronDown className="ml-2 h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              )}
             </Button>
             <Input
               placeholder="Filter"
@@ -119,9 +154,19 @@ function App() {
       header: ({ column }) => {
         return (
           <div className="space-y-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+            <Button
+              variant="ghost"
+              className={column.getIsSorted() ? 'text-primary' : ''}
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
               Customer
-              <ArrowUpDown className="ml-2 h-4 w-4" />
+              {column.getIsSorted() === 'asc' ? (
+                <ChevronUp className="ml-2 h-4 w-4" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ChevronDown className="ml-2 h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              )}
             </Button>
             <Input
               placeholder="Filter"
@@ -143,9 +188,19 @@ function App() {
       header: ({ column }) => {
         return (
           <div className="space-y-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+            <Button
+              variant="ghost"
+              className={column.getIsSorted() ? 'text-primary' : ''}
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
               Status
-              <ArrowUpDown className="ml-2 h-4 w-4" />
+              {column.getIsSorted() === 'asc' ? (
+                <ChevronUp className="ml-2 h-4 w-4" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ChevronDown className="ml-2 h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              )}
             </Button>
             <Input
               placeholder="Filter"
@@ -160,7 +215,7 @@ function App() {
         return <div><StatusBadge value={row.original.status} /></div>
       }
     },
-  ]
+  ], [])
 
   const table = useReactTable({
     data: loads,
@@ -172,14 +227,20 @@ function App() {
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    manualSorting: true,
   })
 
   useEffect(() => {
     fetchLoads(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Refetch when sorting changes so server applies ordering
+  useEffect(() => {
+    fetchLoads(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(sorting)])
 
   function StatusBadge({ value }: { value: string }) {
     const v = (value || '').toUpperCase()

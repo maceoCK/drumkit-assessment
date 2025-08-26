@@ -436,10 +436,12 @@ export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoad
             {step === 1 && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <SectionTitle>Customer</SectionTitle>
-                <div className="hidden sm:block" />
                 <div className="grid gap-1">
                   <Label htmlFor="customerSelect">Customer</Label>
-                  <select id="customerSelect" className="h-9 rounded border px-2" disabled={loadingCustomers}
+                  <select
+                    id="customerSelect"
+                    className="border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    disabled={loadingCustomers}
                     onChange={(e) => {
                       const id = Number(e.target.value)
                       const sel = customers.find(c => c.id === id)
@@ -475,7 +477,6 @@ export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoad
             {step === 2 && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <SectionTitle>Pickup</SectionTitle>
-                <div className="hidden sm:block" />
                 <Field name="pickup.name" label="Name" required />
                 <Field name="pickup.addressLine1" label="Address Line 1" required />
                 <Field name="pickup.city" label="City" required />
@@ -502,7 +503,6 @@ export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoad
             {step === 3 && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <SectionTitle>Consignee</SectionTitle>
-                <div className="hidden sm:block" />
                 <Field name="consignee.name" label="Name" required />
                 <Field name="consignee.addressLine1" label="Address Line 1" required />
                 <Field name="consignee.city" label="City" required />
@@ -529,7 +529,6 @@ export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoad
             {step === 4 && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <SectionTitle>Scheduling</SectionTitle>
-                <div className="hidden sm:block" />
                 <Field name="scheduling.readyTime" label="Pickup Time" type="datetime-local" required />
                 <Field name="scheduling.mustDeliver" label="Delivery Time" type="datetime-local" required />
                 <details className="sm:col-span-2">
