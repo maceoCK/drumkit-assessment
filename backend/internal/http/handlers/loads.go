@@ -34,6 +34,7 @@ func (h *LoadHandler) RegisterRoutes(r *chi.Mux) {
 		r.Get("/by-external/{externalTMSLoadID}", h.GetLoadByExternalID)
 		r.Put("/{id}", h.UpdateLoad) // Stretch goal
 	})
+	r.Get("/api/customers", h.ListCustomers)
 }
 
 func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
@@ -148,4 +149,22 @@ func (h *LoadHandler) UpdateLoad(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "update load", "id": id})
+}
+
+// ListCustomers proxies Turvo customers list (minimal fields)
+func (h *LoadHandler) ListCustomers(w http.ResponseWriter, r *http.Request) {
+	forward := url.Values{}
+	q := r.URL.Query()
+	for _, key := range []string{"start", "pageSize", "name[eq]", "status[eq]", "updated[lte]", "created[gte]"} {
+		if v := q.Get(key); v != "" {
+			forward.Set(key, v)
+		}
+	}
+	customers, err := h.TurvoClient.ListCustomers(r.Context(), forward)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"items": customers})
 }

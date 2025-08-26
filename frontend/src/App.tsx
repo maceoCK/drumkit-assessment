@@ -1,34 +1,43 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  type SortingState, type ColumnDef,
+  type ColumnFiltersState,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel, useReactTable,
+} from '@tanstack/react-table'
+import { ArrowUpDown, Plus } from "lucide-react"
+import CreateLoadModal from '@/components/CreateLoadModal'
+
 import './App.css'
 
 type Load = {
   externalTMSLoadID: string
   status: string
   customer?: { name?: string }
+  createdAt?: string
 }
 
 function App() {
   const [loads, setLoads] = useState<Load[]>([])
-  const [externalTMSLoadID, setExternalTMSLoadID] = useState('')
-  const [status, setStatus] = useState('NEW')
-  const [pickupAt, setPickupAt] = useState<string>('')
-  const [deliveryAt, setDeliveryAt] = useState<string>('')
-  const [submitting, setSubmitting] = useState(false)
+  const [sorting, setSorting] = useState<SortingState>([])
   const [error, setError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
   const [start, setStart] = useState(0)
   const [pageSize] = useState(24)
   const [moreAvailable, setMoreAvailable] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
   // Server-side filters
   const [filterStatus, setFilterStatus] = useState('') // Turvo status code (2101/2102) or empty
   const [filterExternalId, setFilterExternalId] = useState('')
   const [filterCreatedFrom, setFilterCreatedFrom] = useState('') // datetime-local
   const [filterUpdatedTo, setFilterUpdatedTo] = useState('')
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   function buildQuery(nextStart = start) {
     const params = new URLSearchParams()
@@ -58,49 +67,119 @@ function App() {
     }
   }
 
+  const columns: ColumnDef<Load>[] = [
+    {
+      header: ({ column }) => {
+        return (
+          <div className="space-y-2">
+            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+              External ID
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+            <Input
+              placeholder="Filter"
+              value={(column.getFilterValue() as string) ?? ''}
+              onChange={(e) => column.setFilterValue(e.target.value)}
+              className="h-8"
+            />
+          </div>
+        )
+      },
+      accessorKey: 'externalTMSLoadID',
+      cell: ({ row }) => {
+        return <div>{row.original.externalTMSLoadID}</div>
+      }
+    },
+    {
+      header: ({ column }) => {
+        return (
+          <div className="space-y-2">
+            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+              Created
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+            <Input
+              placeholder="Filter"
+              value={(column.getFilterValue() as string) ?? ''}
+              onChange={(e) => column.setFilterValue(e.target.value)}
+              className="h-8"
+            />
+          </div>
+        )
+      },
+      accessorKey: 'createdAt',
+      cell: ({ row }) => {
+        const v = row.original.createdAt
+        const d = v ? new Date(v) : null
+        return <div>{d ? d.toLocaleString() : '-'}</div>
+      }
+    },
+    
+    {
+      header: ({ column }) => {
+        return (
+          <div className="space-y-2">
+            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+              Customer
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+            <Input
+              placeholder="Filter"
+              value={(column.getFilterValue() as string) ?? ''}
+              onChange={(e) => column.setFilterValue(e.target.value)}
+              className="h-8"
+            />
+          </div>
+        )
+      },
+      accessorKey: 'customer.name',
+      cell: ({ row }) => {
+        return <div>{row.original.customer?.name ?? '-'}</div>
+      }
+    },
+    
+    {
+      accessorKey: 'status',
+      header: ({ column }) => {
+        return (
+          <div className="space-y-2">
+            <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+              Status
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+            <Input
+              placeholder="Filter"
+              value={(column.getFilterValue() as string) ?? ''}
+              onChange={(e) => column.setFilterValue(e.target.value)}
+              className="h-8"
+            />
+          </div>
+        )
+      },
+      cell: ({ row }) => {
+        return <div><StatusBadge value={row.original.status} /></div>
+      }
+    },
+  ]
+
+  const table = useReactTable({
+    data: loads,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  })
+
   useEffect(() => {
     fetchLoads(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitting(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/loads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          externalTMSLoadID,
-          status,
-          customer: { name: '' },
-          pickup: { name: '', addressLine1: '', city: '', state: '', zipcode: '', country: 'US', readyTime: pickupAt ? new Date(pickupAt).toISOString() : undefined },
-          consignee: { name: '', addressLine1: '', city: '', state: '', zipcode: '', country: 'US', mustDeliver: deliveryAt ? new Date(deliveryAt).toISOString() : undefined },
-          specifications: {}
-        })
-      })
-      if (!res.ok) throw new Error('Failed to create load')
-      setExternalTMSLoadID('')
-      await fetchLoads(0)
-      setPickupAt('')
-      setDeliveryAt('')
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to create load')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return loads
-    return loads.filter(l =>
-      l.externalTMSLoadID.toLowerCase().includes(q) ||
-      (l.customer?.name || '').toLowerCase().includes(q) ||
-      (l.status || '').toLowerCase().includes(q)
-    )
-  }, [loads, query])
 
   function StatusBadge({ value }: { value: string }) {
     const v = (value || '').toUpperCase()
@@ -110,89 +189,56 @@ function App() {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create Load</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="grid gap-4 max-w-2xl grid-cols-1 sm:grid-cols-2">
-            <div className="grid gap-2 sm:col-span-2">
-              <Label htmlFor="extId">External TMS Load ID</Label>
-              <Input id="extId" value={externalTMSLoadID} onChange={e => setExternalTMSLoadID(e.target.value)} required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <Input id="status" value={status} onChange={e => setStatus(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pickupAt">Pickup Time</Label>
-              <Input id="pickupAt" type="datetime-local" value={pickupAt} onChange={e => setPickupAt(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="deliveryAt">Delivery Time</Label>
-              <Input id="deliveryAt" type="datetime-local" value={deliveryAt} onChange={e => setDeliveryAt(e.target.value)} />
-            </div>
-            <div className="flex gap-2 sm:col-span-2">
-              <Button type="submit" disabled={submitting}>{submitting ? 'Creating…' : 'Create'}</Button>
-              <Button type="button" variant="outline" onClick={() => fetchLoads(start)}>Refresh</Button>
-            </div>
-            {error && <div className="text-sm text-red-600 sm:col-span-2">{error}</div>}
-          </form>
-        </CardContent>
-      </Card>
+      <CreateLoadModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSuccess={async () => { await fetchLoads(0) }}
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Loads</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Loads</CardTitle>
+            <Button size="sm" onClick={() => setShowCreate(true)} aria-label="Create Load">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid sm:grid-cols-5 gap-3 items-end">
-            <div className="grid gap-1">
-              <Label htmlFor="filterStatus">Status code</Label>
-              <Input id="filterStatus" placeholder="e.g. 2101" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="filterExternal">External ID</Label>
-              <Input id="filterExternal" value={filterExternalId} onChange={e => setFilterExternalId(e.target.value)} />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="createdFrom">Created from</Label>
-              <Input id="createdFrom" type="datetime-local" value={filterCreatedFrom} onChange={e => setFilterCreatedFrom(e.target.value)} />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="updatedTo">Updated to</Label>
-              <Input id="updatedTo" type="datetime-local" value={filterUpdatedTo} onChange={e => setFilterUpdatedTo(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" onClick={() => fetchLoads(0)}>Apply</Button>
-              <Button type="button" variant="outline" onClick={() => { setFilterStatus(''); setFilterExternalId(''); setFilterCreatedFrom(''); setFilterUpdatedTo(''); fetchLoads(0) }}>Clear</Button>
-            </div>
-          </div>
+          {error && (
+            <div className="text-sm text-red-600">{error}</div>
+          )}
 
-          <div className="flex items-center justify-between gap-3">
-            <Input placeholder="Search this page" value={query} onChange={e => setQuery(e.target.value)} />
-            <div className="text-sm text-muted-foreground">Showing {filtered.length} items</div>
+          <div className="flex items-center justify-end gap-3">
+            <div className="text-sm text-muted-foreground">Showing {table.getFilteredRowModel().rows.length} items</div>
           </div>
           <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>External ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((l, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-medium">{l.externalTMSLoadID}</TableCell>
-                    <TableCell>{l.customer?.name ?? '-'}</TableCell>
-                    <TableCell><StatusBadge value={l.status} /></TableCell>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 ))}
-                {filtered.length === 0 && (
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.length > 0 ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">No loads</TableCell>
+                    <TableCell colSpan={columns.length} className="text-center text-muted-foreground">No loads</TableCell>
                   </TableRow>
                 )}
               </TableBody>
