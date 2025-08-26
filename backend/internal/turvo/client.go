@@ -187,6 +187,69 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 	return req, nil
 }
 
+// Minimal customer projection
+type MinimalCustomer struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// ListCustomers fetches customers with filters (minimal fields)
+func (c *Client) ListCustomers(ctx context.Context, q url.Values) ([]MinimalCustomer, error) {
+	if q == nil {
+		q = url.Values{}
+	}
+	if _, ok := q["start"]; !ok {
+		q.Set("start", "0")
+	}
+	if _, ok := q["pageSize"]; !ok {
+		q.Set("pageSize", "50")
+	}
+	req, err := c.newRequest(ctx, http.MethodGet, "customers/list?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		if err := c.fetchToken(ctx, true); err == nil {
+			return c.ListCustomers(ctx, q)
+		}
+	}
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to list customers: %s - %s", resp.Status, string(b))
+	}
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var wrapped struct {
+		Status  string `json:"Status"`
+		Details struct {
+			Customers []struct {
+				ID   int    `json:"id"`
+				Name string `json:"name"`
+			} `json:"customers"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(bodyBytes, &wrapped); err == nil && wrapped.Details.Customers != nil {
+		var out []MinimalCustomer
+		for _, cst := range wrapped.Details.Customers {
+			out = append(out, MinimalCustomer{ID: cst.ID, Name: cst.Name})
+		}
+		return out, nil
+	}
+	// fallback to array form
+	var arr []MinimalCustomer
+	if err := json.Unmarshal(bodyBytes, &arr); err != nil {
+		return nil, err
+	}
+	return arr, nil
+}
+
 // ListShipmentsPage fetches one page of shipments from Turvo.
 func (c *Client) ListShipmentsPage(ctx context.Context, start, pageSize int) ([]Shipment, struct {
 	Start, PageSize, TotalRecordsInPage int
@@ -339,7 +402,8 @@ func (c *Client) CreateShipment(ctx context.Context, shipment Shipment) (*Shipme
 	if err != nil {
 		return nil, err
 	}
-	req, err := c.newRequest(ctx, http.MethodPost, "shipments", bytes.NewReader(payload))
+	log.Printf("Turvo create payload: %s", string(payload))
+	req, err := c.newRequest(ctx, http.MethodPost, "shipments?fullResponse=true", bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
@@ -353,13 +417,30 @@ func (c *Client) CreateShipment(ctx context.Context, shipment Shipment) (*Shipme
 			return c.CreateShipment(ctx, shipment)
 		}
 	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to create shipment: %s - %s", resp.Status, string(body))
+		log.Printf("Turvo create failed: %s - %s", resp.Status, string(bodyBytes))
+		log.Printf("Request URL: %s", resp.Request.URL.String())
+		log.Printf("Request Body: %s", string(payload))
+		log.Printf("Request Headers: %+v", resp.Request.Header)
+		return nil, fmt.Errorf("failed to create shipment: %s - %s", resp.Status, string(bodyBytes))
 	}
+	// Try wrapped response first
+	var wrapped struct {
+		Status  string          `json:"Status"`
+		Details json.RawMessage `json:"details"`
+	}
+	if err := json.Unmarshal(bodyBytes, &wrapped); err == nil && len(wrapped.Details) > 0 {
+		var created Shipment
+		if err := json.Unmarshal(wrapped.Details, &created); err == nil && (created.ID != 0 || created.CustomID != "") {
+
+			return &created, nil
+		}
+	}
+	// Fallback to direct shipment decode
 	var created Shipment
-	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
-		return nil, err
+	if err := json.Unmarshal(bodyBytes, &created); err != nil {
+		return nil, fmt.Errorf("create decode error: %w", err)
 	}
 	return &created, nil
 }

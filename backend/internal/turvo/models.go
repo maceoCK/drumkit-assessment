@@ -1,6 +1,9 @@
 package turvo
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // KeyValuePair is a generic struct for key-value pairs from Turvo.
 type KeyValuePair struct {
@@ -111,28 +114,16 @@ type Contact struct {
 	ID int `json:"id"`
 }
 
-// CustomerOrder links a customer to the shipment.
-type CustomerOrder struct {
-	ID       int  `json:"id,omitempty"`
-	Deleted  bool `json:"deleted,omitempty"`
-	Customer *struct {
-		ID   int    `json:"id"`
-		Name string `json:"name,omitempty"`
-	} `json:"customer,omitempty"`
-	CustomerID            int `json:"customerId,omitempty"`
-	CustomerOrderSourceID int `json:"customerOrderSourceId,omitempty"`
-}
-
-// CarrierOrder links a carrier to the shipment.
-type CarrierOrder struct {
-	CarrierID            int `json:"carrierId"`
-	CarrierOrderSourceID int `json:"carrierOrderSourceId"`
-}
-
 // Transportation defines the mode and service type.
 type Transportation struct {
 	Mode        KeyValuePair `json:"mode"`
 	ServiceType KeyValuePair `json:"serviceType"`
+}
+
+// DateWithTZ matches Turvo format { date, timeZone }
+type DateWithTZ struct {
+	Date     time.Time `json:"date"`
+	TimeZone string    `json:"timeZone,omitempty"`
 }
 
 // Shipment is the top-level object for a Turvo shipment.
@@ -140,12 +131,12 @@ type Shipment struct {
 	ID                      int             `json:"id,omitempty"`
 	CustomID                string          `json:"customId,omitempty"`
 	LtlShipment             bool            `json:"ltlShipment"`
-	StartDate               time.Time       `json:"startDate"`
-	EndDate                 time.Time       `json:"endDate"`
+	StartDate               DateWithTZ      `json:"startDate"`
+	EndDate                 DateWithTZ      `json:"endDate"`
 	CreatedDate             *time.Time      `json:"createdDate,omitempty"`
 	Updated                 *time.Time      `json:"updated,omitempty"`
 	LastUpdatedOn           *time.Time      `json:"lastUpdatedOn,omitempty"`
-	Status                  *Status         `json:"status,omitempty"`
+	Status                  json.RawMessage `json:"status,omitempty"`
 	Equipment               []Equipment     `json:"equipment,omitempty"`
 	Contributors            []Contributor   `json:"contributors,omitempty"`
 	Lane                    *Lane           `json:"lane,omitempty"`
@@ -165,6 +156,24 @@ type Shipment struct {
 type Lane struct {
 	Start string `json:"start"`
 	End   string `json:"end"`
+}
+
+// CustomerOrder links a customer to the shipment (minimal fields for create)
+type CustomerOrder struct {
+	ID       int  `json:"id,omitempty"`
+	Deleted  bool `json:"deleted,omitempty"`
+	Customer *struct {
+		ID   int    `json:"id"`
+		Name string `json:"name,omitempty"`
+	} `json:"customer,omitempty"`
+	CustomerID            int `json:"customerId,omitempty"`
+	CustomerOrderSourceID int `json:"customerOrderSourceId,omitempty"`
+}
+
+// CarrierOrder links a carrier to the shipment (kept for completeness)
+type CarrierOrder struct {
+	CarrierID            int `json:"carrierId"`
+	CarrierOrderSourceID int `json:"carrierOrderSourceId"`
 }
 
 // Margin represents the margin information for a shipment.
