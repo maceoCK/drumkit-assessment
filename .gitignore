@@ -1,3 +1,5 @@
 .env
 terraform
 .cursorignore
+.DS_Store
+*.pkg

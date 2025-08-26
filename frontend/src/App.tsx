@@ -65,11 +65,13 @@ function App() {
     return params.toString()
   }
 
+  const API_BASE = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || ''
+
   async function fetchLoads(nextStart = 0) {
     try {
       setError(null)
       const qs = buildQuery(nextStart)
-      const r = await fetch(`/api/loads?${qs}`)
+      const r = await fetch(`${API_BASE}/api/loads?${qs}`)
       if (!r.ok) throw new Error('Failed to fetch loads')
       const data = await r.json()
       const items: Load[] = Array.isArray(data) ? data : (data?.items ?? [])
