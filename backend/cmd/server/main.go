@@ -1,3 +1,6 @@
+// Drumkit server starts the HTTP API for listing and creating loads that proxy
+// to the Turvo platform. It configures CORS, logging, health endpoints, and
+// mounts API routes under /api.
 package main
 
 import (
@@ -13,6 +16,9 @@ import (
 )
 
 func main() {
+	// main is the entrypoint for the Drumkit backend service. It loads
+	// configuration, constructs the Turvo client and mapper, wires routes,
+	// and starts the HTTP server on :8080.
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

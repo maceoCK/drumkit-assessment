@@ -9,7 +9,7 @@ import (
 	"github.com/maceo-kwik/drumkit/backend/internal/domain"
 )
 
-// Mapper handles the mapping between Drumkit and Turvo models.
+// Mapper converts between the Drumkit domain models and the Turvo API models.
 type Mapper struct {
 	cfg *config.Config
 }
@@ -19,7 +19,8 @@ func NewMapper(cfg *config.Config) *Mapper {
 	return &Mapper{cfg: cfg}
 }
 
-// ToTurvoShipment converts a Drumkit Load into a Turvo Shipment.
+// ToTurvoShipment converts a Drumkit Load into a Turvo Shipment. It composes
+// lane strings, selects defaults, and sets start/end dates.
 func (m *Mapper) ToTurvoShipment(load *domain.Load) (Shipment, error) {
 	now := time.Now()
 	var pickupAt time.Time
@@ -75,7 +76,7 @@ func (m *Mapper) ToTurvoShipment(load *domain.Load) (Shipment, error) {
 	return shipment, nil
 }
 
-// FromTurvoShipment converts a Turvo Shipment into a Drumkit Load.
+// FromTurvoShipment converts a Turvo Shipment into a simplified Load for the UI.
 func (m *Mapper) FromTurvoShipment(s Shipment) (*domain.Load, error) {
 	// Try to parse Status.Code.Value if present; otherwise leave empty
 	status := ""

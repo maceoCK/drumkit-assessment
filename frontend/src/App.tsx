@@ -23,6 +23,8 @@ type Load = {
   createdAt?: string
 }
 
+// App renders a paginated, sortable table of Loads fetched from the backend
+// API. It also exposes a Create modal to post new Loads.
 function App() {
   const [loads, setLoads] = useState<Load[]>([])
   const [sorting, setSorting] = useState<SortingState>([])

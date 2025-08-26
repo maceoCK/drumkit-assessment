@@ -8,7 +8,8 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-// Config holds the application configuration.
+// Config holds all environment-driven configuration for the backend service,
+// including Turvo API settings, CORS, logging, and optional AWS integration.
 type Config struct {
 	AppEnv         string `envconfig:"APP_ENV" default:"local"`
 	TurvoBaseURL   string `envconfig:"TURVO_BASE_URL" default:"https://app.turvo.com"`
@@ -33,7 +34,9 @@ type Config struct {
 	SecretsManagerTurvoSecretName     string   `envconfig:"SECRETS_MANAGER_TURVO_SECRET_NAME"`
 }
 
-// Load loads the configuration depending on APP_ENV.
+// Load reads environment variables (optionally from .env when APP_ENV=local),
+// optionally augments values with AWS Secrets Manager when deployed, and returns
+// the resolved configuration.
 func Load() (*Config, error) {
 	var cfg Config
 

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// KeyValuePair is a generic struct for key-value pairs from Turvo.
+// KeyValuePair represents a simple key/value item as used by Turvo enums.
 type KeyValuePair struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
@@ -17,7 +17,7 @@ type Status struct {
 	Notes string       `json:"notes,omitempty"`
 }
 
-// Equipment defines the equipment requirements for a shipment.
+// Equipment defines equipment requirements for a shipment.
 type Equipment struct {
 	Type           KeyValuePair  `json:"type"`
 	Weight         *float64      `json:"weight,omitempty"`
@@ -120,13 +120,13 @@ type Transportation struct {
 	ServiceType KeyValuePair `json:"serviceType"`
 }
 
-// DateWithTZ matches Turvo format { date, timeZone }
+// DateWithTZ matches Turvo format { date, timeZone }.
 type DateWithTZ struct {
 	Date     time.Time `json:"date"`
 	TimeZone string    `json:"timeZone,omitempty"`
 }
 
-// Shipment is the top-level object for a Turvo shipment.
+// Shipment is the top-level object for a Turvo shipment used by the app.
 type Shipment struct {
 	ID                      int             `json:"id,omitempty"`
 	CustomID                string          `json:"customId,omitempty"`
@@ -158,7 +158,7 @@ type Lane struct {
 	End   string `json:"end"`
 }
 
-// CustomerOrder links a customer to the shipment (minimal fields for create)
+// CustomerOrder links a customer to the shipment (minimal fields for create).
 type CustomerOrder struct {
 	ID       int  `json:"id,omitempty"`
 	Deleted  bool `json:"deleted,omitempty"`
@@ -170,13 +170,13 @@ type CustomerOrder struct {
 	CustomerOrderSourceID int `json:"customerOrderSourceId,omitempty"`
 }
 
-// CarrierOrder links a carrier to the shipment (kept for completeness)
+// CarrierOrder links a carrier to the shipment (kept for completeness).
 type CarrierOrder struct {
 	CarrierID            int `json:"carrierId"`
 	CarrierOrderSourceID int `json:"carrierOrderSourceId"`
 }
 
-// Margin represents the margin information for a shipment.
+// Margin represents margin information for a shipment.
 type Margin struct {
 	MinPay float64 `json:"minPay,omitempty"`
 	MaxPay float64 `json:"maxPay,omitempty"`

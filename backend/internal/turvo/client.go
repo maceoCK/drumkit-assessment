@@ -17,8 +17,8 @@ import (
 	"github.com/maceo-kwik/drumkit/backend/internal/config"
 )
 
-// RateLimitedError indicates Turvo responded with 429 or client is in backoff
-// RetryAfter provides the duration to wait before retrying.
+// RateLimitedError represents an HTTP 429 response from Turvo or an internal
+// cooldown state. RetryAfter indicates how long to wait before retrying.
 type RateLimitedError struct {
 	RetryAfter time.Duration
 	Message    string
@@ -31,7 +31,8 @@ func (e RateLimitedError) Error() string {
 	return fmt.Sprintf("rate limited: retry after %s", e.RetryAfter)
 }
 
-// Client is a client for the Turvo API.
+// Client implements a minimal Turvo Public API client with OAuth token
+// acquisition, API key support, and shipment/customer operations used by Drumkit.
 type Client struct {
 	httpClient *http.Client
 	config     *config.Config
@@ -58,6 +59,8 @@ func (c *Client) oauthTokenEndpoint() string {
 	return fmt.Sprintf("%s/%s/oauth/token", base, "v1")
 }
 
+// fetchToken ensures there is a valid bearer token. It can use a refresh token
+// when available and sets a simple cooldown after 429 responses.
 func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

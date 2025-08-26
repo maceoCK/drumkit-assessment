@@ -135,6 +135,9 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
+// CreateLoadModal presents a multi-step form for composing a new Load and
+// posting it to the backend. Optional sections (Bill To, Carrier, Rate, Specs)
+// can be toggled on/off and are excluded from payload when disabled.
 export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoadModalProps) {
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)

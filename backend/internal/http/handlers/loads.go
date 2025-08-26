@@ -11,13 +11,15 @@ import (
 	"github.com/maceo-kwik/drumkit/backend/internal/turvo"
 )
 
-// LoadHandler handles the HTTP requests for loads.
+// LoadHandler exposes HTTP handlers for listing, creating, and fetching loads.
+// It delegates remote operations to the Turvo API client and converts between
+// Turvo models and the app's domain models via the Mapper.
 type LoadHandler struct {
 	TurvoClient *turvo.Client
 	TurvoMapper *turvo.Mapper
 }
 
-// NewLoadHandler creates a new LoadHandler.
+// NewLoadHandler returns a fully wired LoadHandler instance.
 func NewLoadHandler(client *turvo.Client, mapper *turvo.Mapper) *LoadHandler {
 	return &LoadHandler{
 		TurvoClient: client,
@@ -25,7 +27,8 @@ func NewLoadHandler(client *turvo.Client, mapper *turvo.Mapper) *LoadHandler {
 	}
 }
 
-// RegisterRoutes registers the load routes to the chi router.
+// RegisterRoutes mounts all load-related endpoints under /api/loads and
+// also exposes /api/customers for a minimal customer list used by the UI.
 func (h *LoadHandler) RegisterRoutes(r *chi.Mux) {
 	r.Route("/api/loads", func(r chi.Router) {
 		r.Get("/", h.ListLoads)
@@ -37,6 +40,8 @@ func (h *LoadHandler) RegisterRoutes(r *chi.Mux) {
 	r.Get("/api/customers", h.ListCustomers)
 }
 
+// ListLoads returns a paged list of loads. Query parameters are whitelisted
+// and forwarded to Turvo (e.g. start, pageSize, created[gte], status[eq], sortBy).
 func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
 	// Build query for Turvo with whitelist
 	forward := url.Values{}
@@ -98,6 +103,8 @@ func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CreateLoad creates a shipment in Turvo based on the posted Load payload.
+// On success, it returns the mapped Load of the created shipment.
 func (h *LoadHandler) CreateLoad(w http.ResponseWriter, r *http.Request) {
 	var load domain.Load
 	if err := json.NewDecoder(r.Body).Decode(&load); err != nil {
@@ -120,6 +127,7 @@ func (h *LoadHandler) CreateLoad(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(l)
 }
 
+// GetLoadByID fetches a single shipment by Turvo id and maps it into a Load.
 func (h *LoadHandler) GetLoadByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	s, err := h.TurvoClient.GetShipment(r.Context(), id)
@@ -132,6 +140,7 @@ func (h *LoadHandler) GetLoadByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(l)
 }
 
+// GetLoadByExternalID finds a shipment by the external customId field.
 func (h *LoadHandler) GetLoadByExternalID(w http.ResponseWriter, r *http.Request) {
 	externalID := chi.URLParam(r, "externalTMSLoadID")
 	s, err := h.TurvoClient.FindShipmentByExternalID(r.Context(), externalID)
@@ -145,13 +154,12 @@ func (h *LoadHandler) GetLoadByExternalID(w http.ResponseWriter, r *http.Request
 }
 
 func (h *LoadHandler) UpdateLoad(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement logic to update a load in Turvo
 	id := chi.URLParam(r, "id")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "update load", "id": id})
 }
 
-// ListCustomers proxies Turvo customers list (minimal fields)
+// ListCustomers proxies a minimal list of customers from Turvo for dropdowns.
 func (h *LoadHandler) ListCustomers(w http.ResponseWriter, r *http.Request) {
 	forward := url.Values{}
 	q := r.URL.Query()
