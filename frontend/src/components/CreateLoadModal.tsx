@@ -6,6 +6,8 @@ import { useForm, FormProvider } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 
+const API_BASE = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || ''
+
 type CreateLoadModalProps = {
   open: boolean
   onClose: () => void
@@ -182,7 +184,7 @@ export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoad
     ;(async () => {
       try {
         setLoadingCustomers(true)
-        const r = await fetch('/api/customers?pageSize=50')
+        const r = await fetch(`${API_BASE}/api/customers?pageSize=50`)
         if (!r.ok) throw new Error('Failed customers')
         const data = await r.json()
         const items = Array.isArray(data) ? data : (data?.items ?? [])
@@ -344,7 +346,7 @@ export default function CreateLoadModal({ open, onClose, onSuccess }: CreateLoad
       }
 
       console.log('[CreateLoadModal] submit -> POST /api/loads')
-      const res = await fetch('/api/loads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const res = await fetch(`${API_BASE}/api/loads`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       console.log('[CreateLoadModal] submit -> response status:', res.status)
       if (!res.ok) {
         let bodyText = ''
