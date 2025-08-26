@@ -67,8 +67,16 @@ func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
 	if forward.Get("pageSize") == "" {
 		forward.Set("pageSize", "24")
 	}
+
 	shipments, meta, err := h.TurvoClient.ListShipmentsPageWithQuery(r.Context(), forward)
 	if err != nil {
+		if rl, ok := err.(turvo.RateLimitedError); ok {
+			if rl.RetryAfter > 0 {
+				w.Header().Set("Retry-After", rl.RetryAfter.Round(time.Second).String())
+			}
+			http.Error(w, rl.Error(), http.StatusTooManyRequests)
+			return
+		}
 		http.Error(w, "turvo list error: "+err.Error(), http.StatusBadGateway)
 		return
 	}

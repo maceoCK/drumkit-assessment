@@ -17,6 +17,20 @@ import (
 	"github.com/maceo-kwik/drumkit/backend/internal/config"
 )
 
+// RateLimitedError indicates Turvo responded with 429 or client is in backoff
+// RetryAfter provides the duration to wait before retrying.
+type RateLimitedError struct {
+	RetryAfter time.Duration
+	Message    string
+}
+
+func (e RateLimitedError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("rate limited: retry after %s - %s", e.RetryAfter, e.Message)
+	}
+	return fmt.Sprintf("rate limited: retry after %s", e.RetryAfter)
+}
+
 // Client is a client for the Turvo API.
 type Client struct {
 	httpClient *http.Client
@@ -25,6 +39,8 @@ type Client struct {
 	token      string
 	tokenExp   time.Time
 	refresh    string
+	// simple cooldown to avoid hammering oauth on 429
+	nextOAuthAttempt time.Time
 }
 
 // NewClient creates a new Turvo API client.
@@ -48,6 +64,11 @@ func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 
 	if c.token != "" && time.Until(c.tokenExp) > 60*time.Second {
 		return nil
+	}
+	// backoff respect
+	if time.Now().Before(c.nextOAuthAttempt) {
+		wait := time.Until(c.nextOAuthAttempt)
+		return RateLimitedError{RetryAfter: wait}
 	}
 
 	endpoint := c.oauthTokenEndpoint()
@@ -86,6 +107,17 @@ func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests { // 429
+		cooldown := 60 * time.Second
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if secs, err := strconv.Atoi(ra); err == nil && secs > 0 {
+				cooldown = time.Duration(secs) * time.Second
+			}
+		}
+		c.nextOAuthAttempt = time.Now().Add(cooldown)
+		b, _ := io.ReadAll(resp.Body)
+		return RateLimitedError{RetryAfter: cooldown, Message: string(b)}
+	}
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("oauth token error: %s - %s", resp.Status, string(b))
@@ -109,6 +141,7 @@ func (c *Client) fetchToken(ctx context.Context, useRefresh bool) error {
 		tok.ExpiresIn = 12 * 60 * 60
 	}
 	c.tokenExp = time.Now().Add(time.Duration(tok.ExpiresIn) * time.Second)
+	c.nextOAuthAttempt = time.Time{} // clear cooldown
 	return nil
 }
 
