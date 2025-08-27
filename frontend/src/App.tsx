@@ -70,9 +70,8 @@ function App() {
     params.set('pageSize', String(pageSize))
     if (filterStatus) params.set('status[eq]', filterStatus)
     if (filterExternalId) params.set('customId[eq]', filterExternalId)
-    // Prefer newer field names some tenants expect
-    if (filterCreatedFrom) params.set('createdDate[gte]', new Date(filterCreatedFrom).toISOString())
-    if (filterUpdatedTo) params.set('lastUpdatedOn[lte]', new Date(filterUpdatedTo).toISOString())
+    if (filterCreatedFrom) params.set('created[gte]', new Date(filterCreatedFrom).toISOString())
+    if (filterUpdatedTo) params.set('updated[lte]', new Date(filterUpdatedTo).toISOString())
     const sort = mapSortForAPI(sorting)
     if (sort) params.set('sortBy', sort)
     return params.toString()

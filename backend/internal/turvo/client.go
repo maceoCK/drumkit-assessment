@@ -270,6 +270,104 @@ func (c *Client) ListCustomers(ctx context.Context, q url.Values) ([]MinimalCust
 	return arr, nil
 }
 
+// ListShipmentsPage fetches one page of shipments from Turvo.
+func (c *Client) ListShipmentsPage(ctx context.Context, start, pageSize int) ([]Shipment, struct {
+	Start, PageSize, TotalRecordsInPage int
+	MoreAvailable                       bool
+	LastObjectKey                       interface{}
+}, error) {
+	var pagination struct {
+		Start              int
+		PageSize           int
+		TotalRecordsInPage int
+		MoreAvailable      bool
+		LastObjectKey      interface{}
+	}
+	path := fmt.Sprintf("shipments/list?start=%d&pageSize=%d", start, pageSize)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, pagination, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, pagination, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		if err := c.fetchToken(ctx, true); err == nil {
+			return c.ListShipmentsPage(ctx, start, pageSize)
+		}
+	}
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, pagination, fmt.Errorf("failed to list shipments: %s - %s", resp.Status, string(b))
+	}
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, pagination, err
+	}
+	var wrapped struct {
+		Status  string `json:"Status"`
+		Details struct {
+			Shipments  []Shipment `json:"shipments"`
+			Pagination struct {
+				Start              int         `json:"start"`
+				PageSize           int         `json:"pageSize"`
+				TotalRecordsInPage int         `json:"totalRecordsInPage"`
+				MoreAvailable      bool        `json:"moreAvailable"`
+				LastObjectKey      interface{} `json:"lastObjectKey"`
+			} `json:"pagination"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(bodyBytes, &wrapped); err == nil && wrapped.Details.Shipments != nil {
+		pagination.Start = wrapped.Details.Pagination.Start
+		pagination.PageSize = wrapped.Details.Pagination.PageSize
+		pagination.TotalRecordsInPage = wrapped.Details.Pagination.TotalRecordsInPage
+		pagination.MoreAvailable = wrapped.Details.Pagination.MoreAvailable
+		pagination.LastObjectKey = wrapped.Details.Pagination.LastObjectKey
+		return wrapped.Details.Shipments, pagination, nil
+	}
+	var shipments []Shipment
+	if err := json.Unmarshal(bodyBytes, &shipments); err != nil {
+		return nil, pagination, err
+	}
+
+	pagination.Start = start
+	pagination.PageSize = len(shipments)
+	pagination.TotalRecordsInPage = len(shipments)
+	pagination.MoreAvailable = false
+	return shipments, pagination, nil
+}
+
+// ListShipments fetches all shipments by paging until completion.
+func (c *Client) ListShipments(ctx context.Context) ([]Shipment, error) {
+	var all []Shipment
+	start := 0
+	pageSize := 100
+	maxPages := 100
+	for page := 0; page < maxPages; page++ {
+		items, meta, err := c.ListShipmentsPage(ctx, start, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if !meta.MoreAvailable {
+			break
+		}
+		incr := meta.TotalRecordsInPage
+		if incr <= 0 {
+			incr = len(items)
+		}
+		if incr <= 0 {
+			break
+		}
+		start += incr
+	}
+
+	log.Println("Shipments listed from Turvo:", len(all))
+	return all, nil
+}
+
 // GetShipment fetches a shipment by ID.
 func (c *Client) GetShipment(ctx context.Context, id string) (*Shipment, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, fmt.Sprintf("shipments/%s", id), nil)
@@ -374,6 +472,20 @@ func (c *Client) CreateShipment(ctx context.Context, shipment Shipment) (*Shipme
 	return &created, nil
 }
 
+// FindShipmentByExternalID lists shipments and filters by CustomID as an external reference.
+func (c *Client) FindShipmentByExternalID(ctx context.Context, externalID string) (*Shipment, error) {
+	shipments, err := c.ListShipments(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range shipments {
+		if s.CustomID == externalID {
+			return &s, nil
+		}
+	}
+	return nil, fmt.Errorf("shipment not found for external id %s", externalID)
+}
+
 // ListShipmentsPageWithQuery fetches one page with additional filters.
 func (c *Client) ListShipmentsPageWithQuery(ctx context.Context, q url.Values) ([]Shipment, struct {
 	Start, PageSize, TotalRecordsInPage int
@@ -389,20 +501,6 @@ func (c *Client) ListShipmentsPageWithQuery(ctx context.Context, q url.Values) (
 	}
 	if _, ok := q["pageSize"]; !ok {
 		q.Set("pageSize", "50")
-	}
-	// Map common aliases to preferred field names
-	alias := map[string]string{
-		"created[gte]":    "createdDate[gte]",
-		"updated[lte]":    "lastUpdatedOn[lte]",
-		"status.code[eq]": "status[eq]",
-		"status.code[in]": "status[in]",
-		"q":               "customId[like]",
-	}
-	for from, to := range alias {
-		if v := q.Get(from); v != "" {
-			q.Del(from)
-			q.Set(to, v)
-		}
 	}
 	path := "shipments/list?" + q.Encode()
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
