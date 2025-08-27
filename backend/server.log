@@ -1,0 +1,5 @@
+2025/08/26 16:57:35 Loaded .env file
+2025/08/26 16:57:35 Configuration loaded: {AppEnv:local TurvoBaseURL:https://my-sandbox-publicapi.turvo.com TurvoAPIPrefix:/v1 TurvoClientID:publicapi TurvoClientSecret:secret TurvoAPIKey:4jPf0KryLh58zkolsNXPpae142yh23rJkrhUKmKe TurvoOAuthUsername:axle@wickerparklogistics.com TurvoOAuthPassword:DZJ@pcu_qzd8ecz0fgw TurvoOAuthScope:read+trust+write TurvoOAuthUserType:business TurvoTenant:1188 TurvoUseAWSSigV4:false WebhookSecret: AllowedOrigins:[http://localhost:5173] LogLevel:info TurvoDefaultCustomerID:0 TurvoDefaultOriginLocationID:0 TurvoDefaultDestinationLocationID:0 AWSRegion:us-east-1 SecretsManagerTurvoSecretName:turvo}
+2025/08/26 16:57:35 Server starting on port 8080...
+2025/08/26 16:57:35 Server failed to start: listen tcp :8080: bind: address already in use
+exit status 1

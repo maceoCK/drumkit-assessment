@@ -131,12 +131,14 @@ type Shipment struct {
 	ID                      int             `json:"id,omitempty"`
 	CustomID                string          `json:"customId,omitempty"`
 	LtlShipment             bool            `json:"ltlShipment"`
+	Phase                   KeyValuePair    `json:"phase,omitempty"`
 	StartDate               DateWithTZ      `json:"startDate"`
 	EndDate                 DateWithTZ      `json:"endDate"`
 	CreatedDate             *time.Time      `json:"createdDate,omitempty"`
 	Updated                 *time.Time      `json:"updated,omitempty"`
 	LastUpdatedOn           *time.Time      `json:"lastUpdatedOn,omitempty"`
 	Status                  json.RawMessage `json:"status,omitempty"`
+	Transportation          Transportation  `json:"transportation,omitempty"`
 	Equipment               []Equipment     `json:"equipment,omitempty"`
 	Contributors            []Contributor   `json:"contributors,omitempty"`
 	Lane                    *Lane           `json:"lane,omitempty"`
@@ -166,8 +168,9 @@ type CustomerOrder struct {
 		ID   int    `json:"id"`
 		Name string `json:"name,omitempty"`
 	} `json:"customer,omitempty"`
-	CustomerID            int `json:"customerId,omitempty"`
-	CustomerOrderSourceID int `json:"customerOrderSourceId,omitempty"`
+	CustomerID            int     `json:"customerId,omitempty"`
+	CustomerOrderSourceID int     `json:"customerOrderSourceId,omitempty"`
+	TotalMiles            float64 `json:"totalMiles,omitempty"`
 }
 
 // CarrierOrder links a carrier to the shipment (kept for completeness).
@@ -178,8 +181,12 @@ type CarrierOrder struct {
 
 // Margin represents margin information for a shipment.
 type Margin struct {
-	MinPay float64 `json:"minPay,omitempty"`
-	MaxPay float64 `json:"maxPay,omitempty"`
+	MinPay                float64 `json:"minPay,omitempty"`
+	MaxPay                float64 `json:"maxPay,omitempty"`
+	TotalReceivableAmount float64 `json:"totalReceivableAmount,omitempty"`
+	TotalPayableAmount    float64 `json:"totalPayableAmount,omitempty"`
+	Amount                float64 `json:"amount,omitempty"`
+	Value                 float64 `json:"value,omitempty"`
 }
 
 // Order represents a Turvo Order.

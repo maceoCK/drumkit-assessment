@@ -14,6 +14,15 @@ type Load struct {
 	Carrier           *Carrier        `json:"carrier,omitempty"`
 	RateData          *RateData       `json:"rateData,omitempty"`
 	Specifications    *Specifications `json:"specifications,omitempty"`
+	// Additional derived fields for UI display
+	Phase              string   `json:"phase,omitempty"`
+	Mode               string   `json:"mode,omitempty"`
+	ServiceType        string   `json:"serviceType,omitempty"`
+	Services           []string `json:"services,omitempty"`
+	Equipment          []string `json:"equipment,omitempty"`
+	CustomerTotalMiles *float64 `json:"customerTotalMiles,omitempty"`
+	MarginAmount       *float64 `json:"marginAmount,omitempty"`
+	MarginValue        *float64 `json:"marginValue,omitempty"`
 }
 
 type Party struct {

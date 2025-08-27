@@ -21,6 +21,16 @@ type Load = {
   status: string
   customer?: { name?: string }
   createdAt?: string
+  pickup?: { city?: string; state?: string }
+  consignee?: { city?: string; state?: string }
+  phase?: string
+  mode?: string
+  serviceType?: string
+  services?: string[]
+  equipment?: string[]
+  customerTotalMiles?: number
+  marginAmount?: number
+  marginValue?: number
 }
 
 // App renders a paginated, sortable table of Loads fetched from the backend
@@ -60,8 +70,9 @@ function App() {
     params.set('pageSize', String(pageSize))
     if (filterStatus) params.set('status[eq]', filterStatus)
     if (filterExternalId) params.set('customId[eq]', filterExternalId)
-    if (filterCreatedFrom) params.set('created[gte]', new Date(filterCreatedFrom).toISOString())
-    if (filterUpdatedTo) params.set('updated[lte]', new Date(filterUpdatedTo).toISOString())
+    // Prefer newer field names some tenants expect
+    if (filterCreatedFrom) params.set('createdDate[gte]', new Date(filterCreatedFrom).toISOString())
+    if (filterUpdatedTo) params.set('lastUpdatedOn[lte]', new Date(filterUpdatedTo).toISOString())
     const sort = mapSortForAPI(sorting)
     if (sort) params.set('sortBy', sort)
     return params.toString()
@@ -117,6 +128,276 @@ function App() {
       accessorKey: 'externalTMSLoadID',
       cell: ({ row }) => {
         return <div>{row.original.externalTMSLoadID}</div>
+      }
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Phase
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'phase',
+      cell: ({ row }) => (<div>{row.original.phase ?? '-'}</div>)
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Mode
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'mode',
+      cell: ({ row }) => (<div>{row.original.mode ?? '-'}</div>)
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Service Type
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'serviceType',
+      cell: ({ row }) => (<div>{row.original.serviceType ?? '-'}</div>)
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Services
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'services',
+      cell: ({ row }) => {
+        const arr = row.original.services || []
+        return <div>{arr.length ? arr.join(', ') : '-'}</div>
+      }
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Equipment
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'equipment',
+      cell: ({ row }) => {
+        const arr = row.original.equipment || []
+        return <div>{arr.length ? arr.join(', ') : '-'}</div>
+      }
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Miles
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'customerTotalMiles',
+      cell: ({ row }) => (<div>{row.original.customerTotalMiles ?? '-'}</div>)
+    },
+    {
+      header: ({ column }) => (
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            className={column.getIsSorted() ? 'text-primary' : ''}
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Margin
+            {column.getIsSorted() === 'asc' ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === 'desc' ? (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
+          </Button>
+          <Input
+            placeholder="Filter"
+            value={(column.getFilterValue() as string) ?? ''}
+            onChange={(e) => column.setFilterValue(e.target.value)}
+            className="h-8"
+          />
+        </div>
+      ),
+      accessorKey: 'marginAmount',
+      cell: ({ row }) => (<div>{row.original.marginAmount ?? '-'}</div>)
+    },
+    {
+      header: ({ column }) => {
+        return (
+          <div className="space-y-2">
+            <Button
+              variant="ghost"
+              className={column.getIsSorted() ? 'text-primary' : ''}
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
+              Pickup
+              {column.getIsSorted() === 'asc' ? (
+                <ChevronUp className="ml-2 h-4 w-4" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ChevronDown className="ml-2 h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              )}
+            </Button>
+            <Input
+              placeholder="Filter"
+              value={(column.getFilterValue() as string) ?? ''}
+              onChange={(e) => column.setFilterValue(e.target.value)}
+              className="h-8"
+            />
+          </div>
+        )
+      },
+      accessorKey: 'pickup',
+      cell: ({ row }) => {
+        const p = row.original.pickup
+        const text = [p?.city, p?.state].filter(Boolean).join(', ')
+        return <div>{text || '-'}</div>
+      }
+    },
+    {
+      header: ({ column }) => {
+        return (
+          <div className="space-y-2">
+            <Button
+              variant="ghost"
+              className={column.getIsSorted() ? 'text-primary' : ''}
+              onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            >
+              Destination
+              {column.getIsSorted() === 'asc' ? (
+                <ChevronUp className="ml-2 h-4 w-4" />
+              ) : column.getIsSorted() === 'desc' ? (
+                <ChevronDown className="ml-2 h-4 w-4" />
+              ) : (
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+              )}
+            </Button>
+            <Input
+              placeholder="Filter"
+              value={(column.getFilterValue() as string) ?? ''}
+              onChange={(e) => column.setFilterValue(e.target.value)}
+              className="h-8"
+            />
+          </div>
+        )
+      },
+      accessorKey: 'consignee',
+      cell: ({ row }) => {
+        const c = row.original.consignee
+        const text = [c?.city, c?.state].filter(Boolean).join(', ')
+        return <div>{text || '-'}</div>
       }
     },
     {

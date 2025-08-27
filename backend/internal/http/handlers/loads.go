@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -34,7 +37,6 @@ func (h *LoadHandler) RegisterRoutes(r *chi.Mux) {
 		r.Get("/", h.ListLoads)
 		r.Post("/", h.CreateLoad)
 		r.Get("/{id}", h.GetLoadByID)
-		r.Get("/by-external/{externalTMSLoadID}", h.GetLoadByExternalID)
 		r.Put("/{id}", h.UpdateLoad) // Stretch goal
 	})
 	r.Get("/api/customers", h.ListCustomers)
@@ -43,6 +45,7 @@ func (h *LoadHandler) RegisterRoutes(r *chi.Mux) {
 // ListLoads returns a paged list of loads. Query parameters are whitelisted
 // and forwarded to Turvo (e.g. start, pageSize, created[gte], status[eq], sortBy).
 func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
+	log.Printf("ListLoads called")
 	// Build query for Turvo with whitelist
 	forward := url.Values{}
 	q := r.URL.Query()
@@ -53,27 +56,30 @@ func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
 	if v := q.Get("pageSize"); v != "" {
 		forward.Set("pageSize", v)
 	}
-	// filters
+	// filters (basic only)
 	for _, key := range []string{
-		"created[gte]", "updated[lte]", "customId[eq]", "status[eq]", "status[in]",
-		"locationId[eq]", "pickupDate[gte]", "pickupDate[lte]", "deliveryDate[gte]", "deliveryDate[lte]",
-		"customerId[eq]", "poNumber[eq]", "bolNumber[eq]", "containerNumber[eq]", "proNumber[eq]",
-		"routeNumber[eq]", "other[eq]", "truckNumber[eq]", "parentAccount[eq]", "parentAccount[in]",
-		"trackingProvider[in]", "serviceAreaKey[eq]", "serviceAreaKey[in]", "sortBy",
+		"createdDate[gte]", "lastUpdatedOn[lte]",
+		"created[gte]", "updated[lte]",
+		"customId[eq]", "status[eq]", "sortBy",
 	} {
 		if v := q.Get(key); v != "" {
 			forward.Set(key, v)
 		}
 	}
+	// global search: q -> customId[like]
+	if v := q.Get("q"); v != "" {
+		forward.Set("customId[like]", v)
+	}
 	// Default: created in last 90 days (Turvo may restrict large windows)
-	if forward.Get("created[gte]") == "" {
-		forward.Set("created[gte]", time.Now().AddDate(0, 0, -90).UTC().Format(time.RFC3339))
+	if forward.Get("created[gte]") == "" && forward.Get("createdDate[gte]") == "" {
+		forward.Set("createdDate[gte]", time.Now().AddDate(0, 0, -90).UTC().Format(time.RFC3339))
 	}
 	// Sensible default page size
 	if forward.Get("pageSize") == "" {
 		forward.Set("pageSize", "24")
 	}
 
+	log.Printf("About to call ListShipmentsPageWithQuery")
 	shipments, meta, err := h.TurvoClient.ListShipmentsPageWithQuery(r.Context(), forward)
 	if err != nil {
 		if rl, ok := err.(turvo.RateLimitedError); ok {
@@ -86,8 +92,47 @@ func (h *LoadHandler) ListLoads(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "turvo list error: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	var loads []*domain.Load
+	// Fetch full details for each shipment to obtain lane (pickup/destination)
+	type idxShipment struct {
+		idx int
+		s   turvo.Shipment
+	}
+	enriched := make([]turvo.Shipment, len(shipments))
+	copy(enriched, shipments)
+	sem := make(chan struct{}, 6)
+	pending := 0
 	for _, s := range shipments {
+		if s.Lane != nil && (s.Lane.Start != "" || s.Lane.End != "") {
+			continue // already has lane; no need to enrich
+		}
+		pending++
+	}
+	if pending > 0 {
+		results := make(chan idxShipment, pending)
+		for i, s := range shipments {
+			if s.Lane != nil && (s.Lane.Start != "" || s.Lane.End != "") {
+				continue
+			}
+			sem <- struct{}{}
+			go func(i int, id int) {
+				defer func() { <-sem }()
+				ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+				defer cancel()
+				detail, err := h.TurvoClient.GetShipment(ctx, strconv.Itoa(id))
+				if err != nil || detail == nil {
+					results <- idxShipment{idx: i, s: shipments[i]}
+					return
+				}
+				results <- idxShipment{idx: i, s: *detail}
+			}(i, s.ID)
+		}
+		for k := 0; k < pending; k++ {
+			res := <-results
+			enriched[res.idx] = res.s
+		}
+	}
+	var loads []*domain.Load
+	for _, s := range enriched {
 		l, _ := h.TurvoMapper.FromTurvoShipment(s)
 		loads = append(loads, l)
 	}
@@ -133,19 +178,6 @@ func (h *LoadHandler) GetLoadByID(w http.ResponseWriter, r *http.Request) {
 	s, err := h.TurvoClient.GetShipment(r.Context(), id)
 	if err != nil {
 		http.Error(w, "turvo get error: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	l, _ := h.TurvoMapper.FromTurvoShipment(*s)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(l)
-}
-
-// GetLoadByExternalID finds a shipment by the external customId field.
-func (h *LoadHandler) GetLoadByExternalID(w http.ResponseWriter, r *http.Request) {
-	externalID := chi.URLParam(r, "externalTMSLoadID")
-	s, err := h.TurvoClient.FindShipmentByExternalID(r.Context(), externalID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	l, _ := h.TurvoMapper.FromTurvoShipment(*s)

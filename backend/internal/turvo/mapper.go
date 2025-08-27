@@ -107,5 +107,70 @@ func (m *Mapper) FromTurvoShipment(s Shipment) (*domain.Load, error) {
 		Customer:          domain.Party{Name: customerName},
 		Specifications:    &domain.Specifications{},
 	}
+
+	// If lane is present, populate pickup/consignee city/state for UI columns
+	if s.Lane != nil {
+		// Lane format is "city, state"; split conservatively on first comma
+		parseLane := func(v string) (city string, state string) {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				return "", ""
+			}
+			parts := strings.SplitN(v, ",", 2)
+			city = strings.TrimSpace(parts[0])
+			if len(parts) > 1 {
+				state = strings.TrimSpace(parts[1])
+			}
+			return city, state
+		}
+		pc, ps := parseLane(s.Lane.Start)
+		dc, ds := parseLane(s.Lane.End)
+		load.Pickup = domain.Stop{City: pc, State: ps}
+		load.Consignee = domain.Stop{City: dc, State: ds}
+	}
+
+	// Optional enrichments from detailed shipment for table columns
+	if s.Phase.Value != "" {
+		load.Phase = s.Phase.Value
+	}
+	if s.Transportation.Mode.Value != "" {
+		load.Mode = s.Transportation.Mode.Value
+	}
+	if s.Transportation.ServiceType.Value != "" {
+		load.ServiceType = s.Transportation.ServiceType.Value
+	}
+	if len(s.Services) > 0 {
+		var sv []string
+		for _, kv := range s.Services {
+			sv = append(sv, kv.Value)
+		}
+		load.Services = sv
+	}
+	if len(s.Equipment) > 0 {
+		var eq []string
+		for _, e := range s.Equipment {
+			if e.Type.Value != "" {
+				eq = append(eq, e.Type.Value)
+			}
+		}
+		load.Equipment = eq
+	}
+	if len(s.CustomerOrder) > 0 && s.CustomerOrder[0].Customer != nil {
+		// total miles at customer order
+		if s.CustomerOrder[0].TotalMiles != 0 {
+			v := s.CustomerOrder[0].TotalMiles
+			load.CustomerTotalMiles = &v
+		}
+	}
+	if s.Margin != nil {
+		if s.Margin.Amount != 0 {
+			v := s.Margin.Amount
+			load.MarginAmount = &v
+		}
+		if s.Margin.Value != 0 {
+			v := s.Margin.Value
+			load.MarginValue = &v
+		}
+	}
 	return load, nil
 }
